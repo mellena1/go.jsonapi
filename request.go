@@ -426,6 +426,14 @@ func unmarshalAttribute(
 
 	// Field was a Pointer type
 	if fieldValue.Kind() == reflect.Ptr {
+		if fieldValue.Type().Elem().Kind() == reflect.Struct {
+			if fieldValue.IsNil() {
+				structZeroVal := reflect.New(fieldValue.Type().Elem())
+				fieldValue.Set(structZeroVal)
+			}
+			value, err = handleStruct(attribute, fieldValue.Elem())
+			return
+		}
 		value, err = handlePointer(attribute, args, fieldType, fieldValue, structField)
 		return
 	}
