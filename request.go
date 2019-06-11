@@ -614,7 +614,8 @@ func handleStruct(
 	fieldValue reflect.Value) (reflect.Value, error) {
 	if fieldValue.CanAddr() {
 		interf := fieldValue.Addr().Interface()
-		if _, ok := interf.(json.Unmarshaler); ok {
+		if _, ok := interf.(json.Unmarshaler); ok || 
+			(fieldValue.Kind() == reflect.Struct && numJSONAPITagsInStruct(fieldValue) == 0) {
 			var tmp []byte
 			tmp, err := json.Marshal(attribute)
 			if err == nil {
@@ -667,4 +668,17 @@ func handleStructSlice(
 	}
 
 	return models, nil
+}
+
+func numJSONAPITagsInStruct(modelValue reflect.Value) int {
+	numTags := 0
+	modelType := modelValue.Type()
+	for i := 0; i < modelValue.NumField(); i++ {
+		fieldType := modelType.Field(i)
+		tag := fieldType.Tag.Get("jsonapi")
+		if tag != "" {
+			numTags++
+		}
+	}
+	return numTags
 }

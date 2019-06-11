@@ -1318,9 +1318,14 @@ func (mca *MyCustomAttribute) UnmarshalJSON(bts []byte) error {
 	return json.Unmarshal(bts, &mca.Field)
 }
 
+type CustomNotImplementingUnmarhaler struct {
+	Field string `json:"field"`
+}
+
 type StructForTest struct {
 	ID     string            `jsonapi:"primary,tests"`
 	Custom MyCustomAttribute `jsonapi:"attr,custom,omitempty"`
+	CustomNoUnmarshal CustomNotImplementingUnmarhaler `jsonapi:"attr,customNoUnmarshal,omitempty"`
 	Raw    json.RawMessage   `jsonapi:"attr,raw,omitempty"`
 	CustomPtr *MyCustomAttribute `jsonapi:"attr,customptr,omitempty"`
 }
@@ -1353,9 +1358,6 @@ func TestUnmarshalWithCustomType(t *testing.T) {
 func TestUnmarshalWithCustomTypePtr(t *testing.T) {
 	sft := &StructForTest{
 		ID: "my-id",
-		Custom: MyCustomAttribute{
-			Field: "a-string",
-		},
 		CustomPtr: &MyCustomAttribute{
 			Field: "b-string",
 		},
@@ -1375,6 +1377,31 @@ func TestUnmarshalWithCustomTypePtr(t *testing.T) {
 	if sft.CustomPtr.Field != newSft.CustomPtr.Field {
 		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%s` but got `%s`",
 			sft.CustomPtr.Field, newSft.CustomPtr.Field)
+	}
+}
+
+func TestUnmarshalWithCustomTypeNotImplementInterface(t *testing.T) {
+	sft := &StructForTest{
+		ID: "my-id",
+		CustomNoUnmarshal: CustomNotImplementingUnmarhaler{
+			Field: "hi",
+		},
+	}
+	buf := new(bytes.Buffer)
+	err := MarshalPayload(buf, sft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newSft := &StructForTest{}
+	err = UnmarshalPayload(buf, newSft)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if sft.CustomNoUnmarshal.Field != newSft.CustomNoUnmarshal.Field {
+		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%s` but got `%s`",
+			sft.CustomNoUnmarshal.Field, newSft.CustomNoUnmarshal.Field)
 	}
 }
 
