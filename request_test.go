@@ -1440,6 +1440,7 @@ func TestNumericSliceUnmarshal(t *testing.T) {
 		ID: "id-1",
 		Ints: []int{1, 2, 3},
 		Floats: []float64{1.0, 2.5, 3.14},
+		CustomInts: []CustomIntType{CustomIntType(2), CustomIntType(3), CustomIntType(4)},
 	}
 	buf := new(bytes.Buffer)
 	err := MarshalPayload(buf, sft)

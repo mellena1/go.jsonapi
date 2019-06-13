@@ -196,4 +196,5 @@ type NumericSlices struct {
 	ID string `jsonapi:"primary,intslice"`
 	Ints []int `jsonapi:"attr,ints"`
 	Floats []float64 `jsonapi:"attr,floats"`
+	CustomInts []CustomIntType `jsonapi:"attr,customInts"`
 }

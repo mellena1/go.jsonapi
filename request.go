@@ -585,6 +585,8 @@ func handleNumericSlice(
 		kind = fieldType.Elem().Kind()
 	}
 
+	fieldElemType := fieldType.Elem()
+
 	values := reflect.MakeSlice(fieldType, v.Len(), v.Len())
 
 	for i := 0; i < v.Len(); i++ {
@@ -595,6 +597,9 @@ func handleNumericSlice(
 		val, err := convertJSONFloatToType(floatValue, kind)
 		if err != nil {
 			return reflect.Value{}, err
+		}
+		if val.Type() != fieldElemType {
+			val = val.Convert(fieldElemType)
 		}
 		values.Index(i).Set(val)
 	}
