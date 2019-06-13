@@ -7,6 +7,11 @@
 A serializer/deserializer for JSON payloads that comply to the
 [JSON API - jsonapi.org](http://jsonapi.org) spec in go.
 
+## Changes in this fork
+* Allow structs to be unmarshalled even if the field is a pointer to a struct
+* Add the ability for nested structs to be unmarshalled using `json` tags if there are not any `jsonapi` tags defined
+* Add numeric slice support ([]int, []float64, etc)
+
 ## Installation
 
 ```

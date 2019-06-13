@@ -192,7 +192,8 @@ type CustomAttributeTypes struct {
 	String CustomStringType `jsonapi:"attr,string"`
 }
 
-type IntSlice struct {
+type NumericSlices struct {
 	ID string `jsonapi:"primary,intslice"`
 	Ints []int `jsonapi:"attr,ints"`
+	Floats []float64 `jsonapi:"attr,floats"`
 }

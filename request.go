@@ -424,6 +424,16 @@ func unmarshalAttribute(
 		return
 	}
 
+	// JSON value was a float slice (numeric)
+	if fieldValue.Type().Kind() == reflect.Slice &&
+		(value.Kind() == reflect.Slice || value.Elem().Kind() == reflect.Slice) && 
+		value.Len() > 0 {
+		if _, isFloat := value.Index(0).Interface().(float64); isFloat {
+			value, err = handleNumericSlice(attribute, fieldType, fieldValue)
+			return
+		}
+	}
+
 	// Field was a Pointer type
 	if fieldValue.Kind() == reflect.Ptr {
 		if fieldValue.Type().Elem().Kind() == reflect.Struct {
@@ -512,6 +522,39 @@ func handleTime(attribute interface{}, args []string, fieldValue reflect.Value) 
 	return reflect.ValueOf(t), nil
 }
 
+func convertJSONFloatToType(floatValue float64, kind reflect.Kind) (reflect.Value, error) {
+	var n interface{}
+	switch kind {
+	case reflect.Int:
+		n = int(floatValue)
+	case reflect.Int8:
+		n = int8(floatValue)
+	case reflect.Int16:
+		n = int16(floatValue)
+	case reflect.Int32:
+		n = int32(floatValue)
+	case reflect.Int64:
+		n = int64(floatValue)
+	case reflect.Uint:
+		n = uint(floatValue)
+	case reflect.Uint8:
+		n = uint8(floatValue)
+	case reflect.Uint16:
+		n = uint16(floatValue)
+	case reflect.Uint32:
+		n = uint32(floatValue)
+	case reflect.Uint64:
+		n = uint64(floatValue)
+	case reflect.Float32:
+		n = float32(floatValue)
+	case reflect.Float64:
+		n = floatValue
+	default:
+		return reflect.Value{}, ErrUnknownFieldNumberType
+	}
+	return reflect.ValueOf(n), nil
+}
+
 func handleNumeric(
 	attribute interface{},
 	fieldType reflect.Type,
@@ -526,50 +569,37 @@ func handleNumeric(
 		kind = fieldType.Kind()
 	}
 
-	var numericValue reflect.Value
+	return convertJSONFloatToType(floatValue, kind)
+}
 
-	switch kind {
-	case reflect.Int:
-		n := int(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Int8:
-		n := int8(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Int16:
-		n := int16(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Int32:
-		n := int32(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Int64:
-		n := int64(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Uint:
-		n := uint(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Uint8:
-		n := uint8(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Uint16:
-		n := uint16(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Uint32:
-		n := uint32(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Uint64:
-		n := uint64(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Float32:
-		n := float32(floatValue)
-		numericValue = reflect.ValueOf(&n)
-	case reflect.Float64:
-		n := floatValue
-		numericValue = reflect.ValueOf(&n)
-	default:
-		return reflect.Value{}, ErrUnknownFieldNumberType
+func handleNumericSlice(
+	attribute interface{},
+	fieldType reflect.Type,
+	fieldValue reflect.Value) (reflect.Value, error) {
+	v := reflect.ValueOf(attribute)
+
+	var kind reflect.Kind
+	if fieldValue.Kind() == reflect.Ptr {
+		kind = fieldType.Elem().Elem().Kind()
+	} else {
+		kind = fieldType.Elem().Kind()
 	}
 
-	return numericValue, nil
+	values := reflect.MakeSlice(fieldType, v.Len(), v.Len())
+
+	for i := 0; i < v.Len(); i++ {
+		floatValue, ok := v.Index(i).Interface().(float64)
+		if !ok {
+			return reflect.Value{}, ErrInvalidType
+		}
+		val, err := convertJSONFloatToType(floatValue, kind)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		values.Index(i).Set(val)
+	}
+
+	return values, nil
 }
 
 func handlePointer(

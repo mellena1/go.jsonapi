@@ -1435,25 +1435,26 @@ func TestUnmarshalWithJSONRawMessage(t *testing.T) {
 	}
 }
 
-func TestIntSliceUnmarshal(t *testing.T) {
-	sft := &IntSlice{
+func TestNumericSliceUnmarshal(t *testing.T) {
+	sft := &NumericSlices{
 		ID: "id-1",
-		Ints: []int{1,2,3},
+		Ints: []int{1, 2, 3},
+		Floats: []float64{1.0, 2.5, 3.14},
 	}
 	buf := new(bytes.Buffer)
 	err := MarshalPayload(buf, sft)
 	if err != nil {
 		t.Fatal(err)
 	}
-	newSft := &IntSlice{}
+	newSft := &NumericSlices{}
 	err = UnmarshalPayload(buf, newSft)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(sft.Ints, newSft.Ints) {
-		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%v` but got `%v`",
+	if !reflect.DeepEqual(sft, newSft) {
+		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%+v` but got `%+v`",
 			sft.Ints, newSft.Ints)
 	}
 }
