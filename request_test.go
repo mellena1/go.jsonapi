@@ -1323,11 +1323,11 @@ type CustomNotImplementingUnmarhaler struct {
 }
 
 type StructForTest struct {
-	ID     string            `jsonapi:"primary,tests"`
-	Custom MyCustomAttribute `jsonapi:"attr,custom,omitempty"`
+	ID                string                          `jsonapi:"primary,tests"`
+	Custom            MyCustomAttribute               `jsonapi:"attr,custom,omitempty"`
 	CustomNoUnmarshal CustomNotImplementingUnmarhaler `jsonapi:"attr,customNoUnmarshal,omitempty"`
-	Raw    json.RawMessage   `jsonapi:"attr,raw,omitempty"`
-	CustomPtr *MyCustomAttribute `jsonapi:"attr,customptr,omitempty"`
+	Raw               json.RawMessage                 `jsonapi:"attr,raw,omitempty"`
+	CustomPtr         *MyCustomAttribute              `jsonapi:"attr,customptr,omitempty"`
 }
 
 func TestUnmarshalWithCustomType(t *testing.T) {
@@ -1435,12 +1435,47 @@ func TestUnmarshalWithJSONRawMessage(t *testing.T) {
 	}
 }
 
+func TestStringPtrSliceUnmarshal(t *testing.T) {
+	type StringSlicePtr struct {
+		ID  string    `jsonapi:"primary,stringSlicePtr"`
+		Str []*string `jsonapi:"attr,str"`
+	}
+
+	strPtr := func(s string) *string { return &s }
+
+	sft := &StringSlicePtr{
+		ID:  "id-1",
+		Str: []*string{strPtr("hello"), strPtr("there"), strPtr("world"), nil},
+	}
+	buf := new(bytes.Buffer)
+	err := MarshalPayload(buf, sft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newSft := &StringSlicePtr{}
+	err = UnmarshalPayload(buf, newSft)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(sft, newSft) {
+		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%+v` but got `%+v`",
+			sft, newSft)
+	}
+}
+
 func TestNumericSliceUnmarshal(t *testing.T) {
+	intPtr := func(i int) *int { return &i }
+	customIntPtr := func(i int) *CustomIntType { cI := CustomIntType(i); return &cI }
+
 	sft := &NumericSlices{
-		ID: "id-1",
-		Ints: []int{1, 2, 3},
-		Floats: []float64{1.0, 2.5, 3.14},
-		CustomInts: []CustomIntType{CustomIntType(2), CustomIntType(3), CustomIntType(4)},
+		ID:            "id-1",
+		Ints:          []int{1, 2, 3},
+		IntPtrs:       []*int{intPtr(6), intPtr(8), intPtr(10)},
+		Floats:        []float64{1.0, 2.5, 3.14},
+		CustomInts:    []CustomIntType{CustomIntType(2), CustomIntType(3), CustomIntType(4)},
+		CustomIntPtrs: []*CustomIntType{customIntPtr(2), customIntPtr(3), customIntPtr(4)},
 	}
 	buf := new(bytes.Buffer)
 	err := MarshalPayload(buf, sft)
@@ -1456,6 +1491,6 @@ func TestNumericSliceUnmarshal(t *testing.T) {
 
 	if !reflect.DeepEqual(sft, newSft) {
 		t.Fatalf("Custom type wasn't properly unmarshalled: Expected to have `%+v` but got `%+v`",
-			sft.Ints, newSft.Ints)
+			sft, newSft)
 	}
 }

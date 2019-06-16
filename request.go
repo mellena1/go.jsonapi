@@ -387,9 +387,9 @@ func unmarshalAttribute(
 	value = reflect.ValueOf(attribute)
 	fieldType := structField.Type
 
-	// Handle field of type []string
-	if fieldValue.Type() == reflect.TypeOf([]string{}) {
-		value, err = handleStringSlice(attribute)
+	// Handle field of type []string or []*string
+	if fieldValue.Type() == reflect.TypeOf([]string{}) || fieldValue.Type() == reflect.TypeOf([]*string{}) {
+		value, err = handleStringSlice(attribute, fieldValue.Type())
 		return
 	}
 
@@ -426,7 +426,7 @@ func unmarshalAttribute(
 
 	// JSON value was a float slice (numeric)
 	if fieldValue.Type().Kind() == reflect.Slice &&
-		(value.Kind() == reflect.Slice || value.Elem().Kind() == reflect.Slice) && 
+		(value.Kind() == reflect.Slice || value.Elem().Kind() == reflect.Slice) &&
 		value.Len() > 0 {
 		if _, isFloat := value.Index(0).Interface().(float64); isFloat {
 			value, err = handleNumericSlice(attribute, fieldType, fieldValue)
@@ -457,14 +457,32 @@ func unmarshalAttribute(
 	return
 }
 
-func handleStringSlice(attribute interface{}) (reflect.Value, error) {
+func handleStringSlice(attribute interface{}, fieldType reflect.Type) (reflect.Value, error) {
 	v := reflect.ValueOf(attribute)
-	values := make([]string, v.Len())
-	for i := 0; i < v.Len(); i++ {
-		values[i] = v.Index(i).Interface().(string)
+	if fieldType == reflect.TypeOf([]string{}) {
+		values := make([]string, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			values[i] = v.Index(i).Interface().(string)
+		}
+
+		return reflect.ValueOf(values), nil
+	}
+	if fieldType == reflect.TypeOf([]*string{}) {
+		values := make([]*string, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			val := v.Index(i).Interface()
+			if val == nil {
+				values[i] = nil
+			} else {
+				valStr := val.(string)
+				values[i] = &valStr
+			}
+		}
+
+		return reflect.ValueOf(values), nil
 	}
 
-	return reflect.ValueOf(values), nil
+	return reflect.Value{}, ErrInvalidType
 }
 
 func handleJSONRawMessage(attribute interface{}) (reflect.Value, error) {
@@ -522,8 +540,17 @@ func handleTime(attribute interface{}, args []string, fieldValue reflect.Value) 
 	return reflect.ValueOf(t), nil
 }
 
-func convertJSONFloatToType(floatValue float64, kind reflect.Kind) (reflect.Value, error) {
+func convertJSONFloatToType(floatValue float64, fieldType reflect.Type) (reflect.Value, error) {
 	var n interface{}
+	shouldReturnPtr := false
+
+	underlyingType := fieldType
+	if underlyingType.Kind() == reflect.Ptr {
+		underlyingType = fieldType.Elem()
+		shouldReturnPtr = true
+	}
+	kind := underlyingType.Kind()
+
 	switch kind {
 	case reflect.Int:
 		n = int(floatValue)
@@ -552,7 +579,18 @@ func convertJSONFloatToType(floatValue float64, kind reflect.Kind) (reflect.Valu
 	default:
 		return reflect.Value{}, ErrUnknownFieldNumberType
 	}
-	return reflect.ValueOf(n), nil
+
+	val := reflect.ValueOf(n)
+	if val.Type() != underlyingType {
+		val = val.Convert(underlyingType)
+	}
+	if shouldReturnPtr {
+		ptrToVal := reflect.New(underlyingType)
+		ptrToVal.Elem().Set(val)
+		val = ptrToVal
+	}
+
+	return val, nil
 }
 
 func handleNumeric(
@@ -562,14 +600,7 @@ func handleNumeric(
 	v := reflect.ValueOf(attribute)
 	floatValue := v.Interface().(float64)
 
-	var kind reflect.Kind
-	if fieldValue.Kind() == reflect.Ptr {
-		kind = fieldType.Elem().Kind()
-	} else {
-		kind = fieldType.Kind()
-	}
-
-	return convertJSONFloatToType(floatValue, kind)
+	return convertJSONFloatToType(floatValue, fieldType)
 }
 
 func handleNumericSlice(
@@ -577,13 +608,6 @@ func handleNumericSlice(
 	fieldType reflect.Type,
 	fieldValue reflect.Value) (reflect.Value, error) {
 	v := reflect.ValueOf(attribute)
-
-	var kind reflect.Kind
-	if fieldValue.Kind() == reflect.Ptr {
-		kind = fieldType.Elem().Elem().Kind()
-	} else {
-		kind = fieldType.Elem().Kind()
-	}
 
 	fieldElemType := fieldType.Elem()
 
@@ -594,13 +618,11 @@ func handleNumericSlice(
 		if !ok {
 			return reflect.Value{}, ErrInvalidType
 		}
-		val, err := convertJSONFloatToType(floatValue, kind)
+		val, err := convertJSONFloatToType(floatValue, fieldElemType)
 		if err != nil {
 			return reflect.Value{}, err
 		}
-		if val.Type() != fieldElemType {
-			val = val.Convert(fieldElemType)
-		}
+
 		values.Index(i).Set(val)
 	}
 
@@ -649,7 +671,7 @@ func handleStruct(
 	fieldValue reflect.Value) (reflect.Value, error) {
 	if fieldValue.CanAddr() {
 		interf := fieldValue.Addr().Interface()
-		if _, ok := interf.(json.Unmarshaler); ok || 
+		if _, ok := interf.(json.Unmarshaler); ok ||
 			(fieldValue.Kind() == reflect.Struct && numJSONAPITagsInStruct(fieldValue) == 0) {
 			var tmp []byte
 			tmp, err := json.Marshal(attribute)
